@@ -936,7 +936,7 @@
           <input type="text" class="panel-url" value="${panelData.url}" onchange="updateUrl(${index}, this.value)" onkeydown="if(event.key==='Enter')this.blur()">
           <button class="panel-close" onclick="removePanel(${index})" title="關閉">✕</button>
         </div>
-        <iframe src="${panelData.url}" title="${panelData.name}"></iframe>
+        <iframe src="${panelData.url}" title="${panelData.name}" allow="clipboard-write; clipboard-read"></iframe>
       `;
 
       // 點擊面板時清除未讀
