@@ -592,6 +592,7 @@
     let focusedPanelId = null;
     let panelSizes = {};
     let initialLoadComplete = {}; // 追蹤首次載入
+    let isRendering = false; // 重新渲染中，忽略 load 事件
 
     // 顯示提示訊息
     function showToast(message, type = 'success') {
@@ -875,15 +876,12 @@
         clearUnread(panelData.id);
       });
 
-      // 監聽 iframe 載入事件
+      // 監聯 iframe 載入事件
       const iframe = panel.querySelector('iframe');
       iframe.addEventListener('load', () => {
-        // 跳過首次載入
-        if (!initialLoadComplete[panelData.id]) {
-          initialLoadComplete[panelData.id] = true;
-          return;
-        }
-        // 增加未讀計數
+        // 跳過系統重新渲染觸發的載入
+        if (isRendering) return;
+        // 增加未讀計數（只有真正的頁面更新才會觸發）
         incrementUnread(panelData.id);
       });
 
@@ -976,11 +974,13 @@
 
     // 渲染佈局
     function renderLayout() {
+      isRendering = true;
       const container = document.getElementById('container');
       container.innerHTML = '';
 
       if (panels.length === 0) {
         container.innerHTML = '<div class="empty-state">點擊下方「+ 新增」加入 URL</div>';
+        isRendering = false;
         return;
       }
 
@@ -1007,6 +1007,11 @@
           renderTopLayout(container);
           break;
       }
+
+      // 延遲重置，等待所有 iframe 首次載入完成
+      setTimeout(() => {
+        isRendering = false;
+      }, 500);
     }
 
     // 分頁模式
