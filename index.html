@@ -21,29 +21,22 @@
       overflow: hidden;
     }
 
-    /* 頂部標題 */
-    .header {
-      background: #16213e;
-      padding: 8px 16px;
-      border-bottom: 1px solid #0f3460;
-      flex-shrink: 0;
-    }
-
-    .header h1 {
-      font-size: 16px;
-      font-weight: 500;
-      color: #e94560;
-    }
-
-    /* 底部工具列 */
+    /* 頂部工具列 */
     .toolbar {
       background: #16213e;
       padding: 10px 16px;
       display: flex;
       align-items: center;
       gap: 16px;
-      border-top: 1px solid #0f3460;
+      border-bottom: 1px solid #0f3460;
       flex-shrink: 0;
+    }
+
+    .toolbar h1 {
+      font-size: 16px;
+      font-weight: 500;
+      color: #e94560;
+      margin-right: 8px;
     }
 
     .layout-buttons {
@@ -495,13 +488,9 @@
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>🪟 視窗分割器</h1>
-  </div>
-
-  <div class="container" id="container"></div>
-
   <div class="toolbar">
+    <h1>🪟 視窗分割器</h1>
+
     <div class="layout-buttons">
       <button class="layout-btn" data-layout="tab" title="分頁模式">
         <div class="layout-icon icon-tab"><span></span></div>
@@ -549,6 +538,8 @@
       <button class="add-btn" onclick="addUrl()">+ 新增</button>
     </div>
   </div>
+
+  <div class="container" id="container"></div>
   <div class="toast" id="toast"></div>
   <input type="file" id="importInput" accept=".json" onchange="importConfig(this.files[0])">
 
@@ -856,19 +847,75 @@
     }
 
     // 建立面板
-    function createPanel(url, index) {
+    function createPanel(panelData, index) {
       const panel = document.createElement('div');
       panel.className = 'panel';
+      panel.dataset.panelId = panelData.id;
+
+      const unreadCount = panelData.unreadCount || 0;
+      const badgeClass = unreadCount === 0 ? 'badge hidden' : 'badge';
+      const badgeText = unreadCount > 99 ? '99+' : unreadCount;
+
       panel.innerHTML = `
         <div class="panel-header">
-          <span style="color: #e94560; font-weight: bold;">${index + 1}</span>
-          <input type="text" class="panel-url" value="${url}" onchange="updateUrl(${index}, this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+          <div class="panel-name" ondblclick="startEditName(${index}, this)" title="雙擊編輯名稱">
+            <span>${panelData.name}</span>
+            <span class="${badgeClass}">${badgeText}</span>
+          </div>
+          <input type="text" class="panel-url" value="${panelData.url}" onchange="updateUrl(${index}, this.value)" onkeydown="if(event.key==='Enter')this.blur()">
           <button class="panel-reload" onclick="reloadPanel(${index})" title="重新載入">↻</button>
-          <button class="panel-close" onclick="removeUrl(${index})" title="關閉">✕</button>
+          <button class="panel-close" onclick="removePanel(${index})" title="關閉">✕</button>
         </div>
-        <iframe src="${url}" title="Panel ${index + 1}"></iframe>
+        <iframe src="${panelData.url}" title="${panelData.name}"></iframe>
       `;
+
+      // 點擊面板時清除未讀
+      panel.addEventListener('click', () => {
+        focusedPanelId = panelData.id;
+        clearUnread(panelData.id);
+      });
+
+      // 監聽 iframe 載入事件
+      const iframe = panel.querySelector('iframe');
+      iframe.addEventListener('load', () => {
+        // 跳過首次載入
+        if (!initialLoadComplete[panelData.id]) {
+          initialLoadComplete[panelData.id] = true;
+          return;
+        }
+        // 增加未讀計數
+        incrementUnread(panelData.id);
+      });
+
       return panel;
+    }
+
+    // 開始編輯名稱
+    function startEditName(index, element) {
+      const panelData = panels[index];
+      const currentName = panelData.name;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'panel-name-input';
+      input.value = currentName;
+
+      const finishEdit = () => {
+        const newName = input.value.trim() || currentName;
+        panelData.name = newName;
+        saveConfig();
+        renderLayout();
+      };
+
+      input.addEventListener('blur', finishEdit);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') input.blur();
+        if (e.key === 'Escape') { input.value = currentName; input.blur(); }
+      });
+
+      element.innerHTML = '';
+      element.appendChild(input);
+      input.focus();
+      input.select();
     }
 
     // 建立分割線
@@ -932,8 +979,8 @@
       const container = document.getElementById('container');
       container.innerHTML = '';
 
-      if (urls.length === 0) {
-        container.innerHTML = '<div class="empty-state">點擊右上角「+ 新增」加入 URL</div>';
+      if (panels.length === 0) {
+        container.innerHTML = '<div class="empty-state">點擊下方「+ 新增」加入 URL</div>';
         return;
       }
 
@@ -964,34 +1011,57 @@
 
     // 分頁模式
     function renderTabLayout(container) {
-      if (activeTabIndex >= urls.length) activeTabIndex = urls.length - 1;
+      if (activeTabIndex >= panels.length) activeTabIndex = panels.length - 1;
       if (activeTabIndex < 0) activeTabIndex = 0;
+
       const wrapper = document.createElement('div');
       wrapper.className = 'tab-layout';
-      // 分頁列在上面
+
+      // 分頁列
       const tabBar = document.createElement('div');
       tabBar.className = 'tab-bar';
-      urls.forEach((url, i) => {
+
+      panels.forEach((panelData, i) => {
+        const unreadCount = panelData.unreadCount || 0;
+        const badgeClass = unreadCount === 0 ? 'badge hidden' : 'badge';
+        const badgeText = unreadCount > 99 ? '99+' : unreadCount;
+
         const tabItem = document.createElement('div');
         tabItem.className = 'tab-item' + (i === activeTabIndex ? ' active' : '');
-        tabItem.innerHTML = `<span class="tab-item-index">${i + 1}</span><span class="tab-item-url" title="${url}">${getDisplayUrl(url)}</span><button class="tab-item-close" onclick="event.stopPropagation(); removeUrl(${i})">✕</button>`;
-        tabItem.addEventListener('click', () => { activeTabIndex = i; renderLayout(); });
+        tabItem.innerHTML = `
+          <span class="tab-item-index">${i + 1}</span>
+          <span class="tab-item-url" title="${panelData.url}">${panelData.name}</span>
+          <span class="${badgeClass}">${badgeText}</span>
+          <button class="tab-item-close" onclick="event.stopPropagation(); removePanel(${i})">✕</button>
+        `;
+        tabItem.addEventListener('click', () => {
+          activeTabIndex = i;
+          focusedPanelId = panelData.id;
+          clearUnread(panelData.id);
+          renderLayout();
+        });
         tabBar.appendChild(tabItem);
       });
+
+      // 全部已讀按鈕
+      if (getTotalUnread() > 0) {
+        const markReadBtn = document.createElement('button');
+        markReadBtn.className = 'mark-read-btn';
+        markReadBtn.textContent = '全部已讀';
+        markReadBtn.onclick = markAllRead;
+        tabBar.appendChild(markReadBtn);
+      }
+
       wrapper.appendChild(tabBar);
+
       // 內容區域
       const content = document.createElement('div');
       content.className = 'tab-content';
-      const panel = createPanel(urls[activeTabIndex], activeTabIndex);
+      const panel = createPanel(panels[activeTabIndex], activeTabIndex);
       panel.style.flex = '1';
       content.appendChild(panel);
       wrapper.appendChild(content);
       container.appendChild(wrapper);
-    }
-
-    function getDisplayUrl(url) {
-      try { const u = new URL(url); return u.host + (u.pathname !== '/' ? u.pathname : ''); }
-      catch { return url; }
     }
 
     // 上下排列
@@ -999,14 +1069,14 @@
       const wrapper = document.createElement('div');
       wrapper.className = 'layout-row';
       wrapper.style.cssText = 'display: flex; flex-direction: column; flex: 1;';
-      
-      urls.forEach((url, i) => {
+
+      panels.forEach((panelData, i) => {
         if (i > 0) wrapper.appendChild(createDivider('h', i - 1));
-        const panel = createPanel(url, i);
+        const panel = createPanel(panelData, i);
         panel.style.flex = '1';
         wrapper.appendChild(panel);
       });
-      
+
       container.appendChild(wrapper);
     }
 
@@ -1015,14 +1085,14 @@
       const wrapper = document.createElement('div');
       wrapper.className = 'layout-col';
       wrapper.style.cssText = 'display: flex; flex-direction: row; flex: 1;';
-      
-      urls.forEach((url, i) => {
+
+      panels.forEach((panelData, i) => {
         if (i > 0) wrapper.appendChild(createDivider('v', i - 1));
-        const panel = createPanel(url, i);
+        const panel = createPanel(panelData, i);
         panel.style.flex = '1';
         wrapper.appendChild(panel);
       });
-      
+
       container.appendChild(wrapper);
     }
 
@@ -1034,36 +1104,36 @@
       // 上排
       const topRow = document.createElement('div');
       topRow.style.cssText = 'display: flex; flex: 1;';
-      
-      if (urls[0]) {
-        const p = createPanel(urls[0], 0);
+
+      if (panels[0]) {
+        const p = createPanel(panels[0], 0);
         p.style.flex = '1';
         topRow.appendChild(p);
       }
-      if (urls[1]) {
+      if (panels[1]) {
         topRow.appendChild(createDivider('v', 0));
-        const p = createPanel(urls[1], 1);
+        const p = createPanel(panels[1], 1);
         p.style.flex = '1';
         topRow.appendChild(p);
       }
       wrapper.appendChild(topRow);
 
       // 分割線
-      if (urls.length > 2) {
+      if (panels.length > 2) {
         wrapper.appendChild(createDivider('h', 0));
-        
+
         // 下排
         const bottomRow = document.createElement('div');
         bottomRow.style.cssText = 'display: flex; flex: 1;';
-        
-        if (urls[2]) {
-          const p = createPanel(urls[2], 2);
+
+        if (panels[2]) {
+          const p = createPanel(panels[2], 2);
           p.style.flex = '1';
           bottomRow.appendChild(p);
         }
-        if (urls[3]) {
+        if (panels[3]) {
           bottomRow.appendChild(createDivider('v', 1));
-          const p = createPanel(urls[3], 3);
+          const p = createPanel(panels[3], 3);
           p.style.flex = '1';
           bottomRow.appendChild(p);
         }
@@ -1079,26 +1149,26 @@
       wrapper.style.cssText = 'display: flex; flex: 1;';
 
       // 左側主面板
-      if (urls[0]) {
-        const main = createPanel(urls[0], 0);
+      if (panels[0]) {
+        const main = createPanel(panels[0], 0);
         main.style.flex = '2';
         wrapper.appendChild(main);
       }
 
       // 右側堆疊
-      if (urls.length > 1) {
+      if (panels.length > 1) {
         wrapper.appendChild(createDivider('v', 0));
-        
+
         const sidebar = document.createElement('div');
         sidebar.style.cssText = 'display: flex; flex-direction: column; flex: 1;';
-        
-        urls.slice(1).forEach((url, i) => {
+
+        panels.slice(1).forEach((panelData, i) => {
           if (i > 0) sidebar.appendChild(createDivider('h', i));
-          const p = createPanel(url, i + 1);
+          const p = createPanel(panelData, i + 1);
           p.style.flex = '1';
           sidebar.appendChild(p);
         });
-        
+
         wrapper.appendChild(sidebar);
       }
 
@@ -1111,24 +1181,24 @@
       wrapper.style.cssText = 'display: flex; flex: 1;';
 
       // 左側堆疊
-      if (urls.length > 1) {
+      if (panels.length > 1) {
         const sidebar = document.createElement('div');
         sidebar.style.cssText = 'display: flex; flex-direction: column; flex: 1;';
-        
-        urls.slice(1).forEach((url, i) => {
+
+        panels.slice(1).forEach((panelData, i) => {
           if (i > 0) sidebar.appendChild(createDivider('h', i));
-          const p = createPanel(url, i + 1);
+          const p = createPanel(panelData, i + 1);
           p.style.flex = '1';
           sidebar.appendChild(p);
         });
-        
+
         wrapper.appendChild(sidebar);
         wrapper.appendChild(createDivider('v', 0));
       }
 
       // 右側主面板
-      if (urls[0]) {
-        const main = createPanel(urls[0], 0);
+      if (panels[0]) {
+        const main = createPanel(panels[0], 0);
         main.style.flex = '2';
         wrapper.appendChild(main);
       }
@@ -1142,41 +1212,41 @@
       wrapper.style.cssText = 'display: flex; flex-direction: column; flex: 1;';
 
       // 頂部主面板
-      if (urls[0]) {
-        const main = createPanel(urls[0], 0);
+      if (panels[0]) {
+        const main = createPanel(panels[0], 0);
         main.style.flex = '2';
         wrapper.appendChild(main);
       }
 
       // 底部並排
-      if (urls.length > 1) {
+      if (panels.length > 1) {
         wrapper.appendChild(createDivider('h', 0));
-        
+
         const bottomRow = document.createElement('div');
         bottomRow.style.cssText = 'display: flex; flex: 1;';
-        
-        urls.slice(1).forEach((url, i) => {
+
+        panels.slice(1).forEach((panelData, i) => {
           if (i > 0) bottomRow.appendChild(createDivider('v', i));
-          const p = createPanel(url, i + 1);
+          const p = createPanel(panelData, i + 1);
           p.style.flex = '1';
           bottomRow.appendChild(p);
         });
-        
+
         wrapper.appendChild(bottomRow);
       }
 
       container.appendChild(wrapper);
     }
 
-    // 新增 URL
+    // 新增面板
     function addUrl() {
       const input = document.getElementById('urlInput');
       let url = input.value.trim();
       if (!url) return;
       if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'http://' + url;
-      urls.push(url);
+      panels.push(createPanelData(url));
       input.value = '';
-      if (currentLayout === 'tab') activeTabIndex = urls.length - 1;
+      if (currentLayout === 'tab') activeTabIndex = panels.length - 1;
       saveConfig();
       renderLayout();
     }
@@ -1186,16 +1256,24 @@
       if (!newUrl.startsWith('http://') && !newUrl.startsWith('https://')) {
         newUrl = 'http://' + newUrl;
       }
-      urls[index] = newUrl;
-      saveConfig(); // 自動儲存
-      const iframe = document.querySelectorAll('.panel iframe')[index];
-      if (iframe) iframe.src = newUrl;
+      if (panels[index]) {
+        panels[index].url = newUrl;
+        saveConfig();
+        const iframe = document.querySelectorAll('.panel iframe')[index];
+        if (iframe) iframe.src = newUrl;
+      }
     }
 
-    // 移除 URL
-    function removeUrl(index) {
-      urls.splice(index, 1);
-      if (currentLayout === 'tab' && activeTabIndex >= urls.length) activeTabIndex = Math.max(0, urls.length - 1);
+    // 移除面板
+    function removePanel(index) {
+      const panelId = panels[index]?.id;
+      if (panelId) {
+        delete initialLoadComplete[panelId];
+      }
+      panels.splice(index, 1);
+      if (currentLayout === 'tab' && activeTabIndex >= panels.length) {
+        activeTabIndex = Math.max(0, panels.length - 1);
+      }
       saveConfig();
       renderLayout();
     }
