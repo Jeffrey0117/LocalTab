@@ -35,7 +35,7 @@
     .toolbar h1 {
       font-size: 16px;
       font-weight: 500;
-      color: #e94560;
+      color: #60a5fa;
       margin-right: 8px;
     }
 
@@ -461,7 +461,7 @@
 
     .panel-name-input {
       background: #16213e;
-      border: 1px solid #e94560;
+      border: 1px solid #3b82f6;
       color: #eee;
       font-size: 12px;
       padding: 2px 4px;
@@ -491,8 +491,8 @@
     }
 
     .mark-read-btn:hover {
-      border-color: #e94560;
-      color: #e94560;
+      border-color: #3b82f6;
+      color: #3b82f6;
     }
   </style>
 </head>
@@ -934,7 +934,6 @@
             <span class="${badgeClass}">${badgeText}</span>
           </div>
           <input type="text" class="panel-url" value="${panelData.url}" onchange="updateUrl(${index}, this.value)" onkeydown="if(event.key==='Enter')this.blur()">
-          <button class="panel-reload" onclick="reloadPanel(${index})" title="重新載入">↻ 重整</button>
           <button class="panel-close" onclick="removePanel(${index})" title="關閉">✕</button>
         </div>
         <iframe src="${panelData.url}" title="${panelData.name}"></iframe>
