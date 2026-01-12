@@ -591,8 +591,6 @@
     let activeTabIndex = 0;
     let focusedPanelId = null;
     let panelSizes = {};
-    let initialLoadComplete = {}; // 追蹤首次載入
-    let isRendering = false; // 重新渲染中，忽略 load 事件
 
     // 顯示提示訊息
     function showToast(message, type = 'success') {
@@ -714,6 +712,68 @@
     }
 
     // ==================== 通知功能 ====================
+    const POLL_INTERVAL = 5000; // 5 秒檢查一次
+    let pollTimer = null;
+    let panelFingerprints = {}; // 儲存每個 URL 的 fingerprint
+
+    // 檢查單一 URL 是否有更新
+    async function checkUrlUpdate(panelData) {
+      try {
+        const res = await fetch(panelData.url, {
+          method: 'HEAD',
+          cache: 'no-store'
+        });
+
+        // 優先用 ETag，其次 Last-Modified，最後用 Content-Length
+        const etag = res.headers.get('ETag');
+        const lastModified = res.headers.get('Last-Modified');
+        const contentLength = res.headers.get('Content-Length');
+        const fingerprint = etag || lastModified || contentLength || '';
+
+        const oldFingerprint = panelFingerprints[panelData.id];
+        panelFingerprints[panelData.id] = fingerprint;
+
+        // 首次檢查不算更新
+        if (oldFingerprint === undefined) return false;
+
+        // fingerprint 變化 = 有更新
+        if (fingerprint && fingerprint !== oldFingerprint) {
+          return true;
+        }
+        return false;
+      } catch (e) {
+        // 請求失敗（服務未啟動等），忽略
+        return false;
+      }
+    }
+
+    // 檢查所有面板更新
+    async function checkAllUpdates() {
+      for (const panelData of panels) {
+        const hasUpdate = await checkUrlUpdate(panelData);
+        if (hasUpdate) {
+          incrementUnread(panelData.id);
+        }
+      }
+    }
+
+    // 開始輪詢
+    function startPolling() {
+      if (pollTimer) return;
+      // 先做一次初始檢查（建立 fingerprint）
+      checkAllUpdates();
+      // 定時檢查
+      pollTimer = setInterval(checkAllUpdates, POLL_INTERVAL);
+    }
+
+    // 停止輪詢
+    function stopPolling() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+
     // 增加未讀計數
     function incrementUnread(panelId) {
       const panel = panels.find(p => p.id === panelId);
@@ -783,6 +843,7 @@
       renderLayout();
       setupLayoutButtons();
       setupKeyboard();
+      startPolling(); // 開始檢查更新
     }
 
     // 設定佈局按鈕
@@ -876,15 +937,6 @@
         clearUnread(panelData.id);
       });
 
-      // 監聯 iframe 載入事件
-      const iframe = panel.querySelector('iframe');
-      iframe.addEventListener('load', () => {
-        // 跳過系統重新渲染觸發的載入
-        if (isRendering) return;
-        // 增加未讀計數（只有真正的頁面更新才會觸發）
-        incrementUnread(panelData.id);
-      });
-
       return panel;
     }
 
@@ -974,13 +1026,11 @@
 
     // 渲染佈局
     function renderLayout() {
-      isRendering = true;
       const container = document.getElementById('container');
       container.innerHTML = '';
 
       if (panels.length === 0) {
         container.innerHTML = '<div class="empty-state">點擊下方「+ 新增」加入 URL</div>';
-        isRendering = false;
         return;
       }
 
@@ -1007,11 +1057,6 @@
           renderTopLayout(container);
           break;
       }
-
-      // 延遲重置，等待所有 iframe 首次載入完成
-      setTimeout(() => {
-        isRendering = false;
-      }, 500);
     }
 
     // 分頁模式
@@ -1273,7 +1318,7 @@
     function removePanel(index) {
       const panelId = panels[index]?.id;
       if (panelId) {
-        delete initialLoadComplete[panelId];
+        delete panelFingerprints[panelId];
       }
       panels.splice(index, 1);
       if (currentLayout === 'tab' && activeTabIndex >= panels.length) {
