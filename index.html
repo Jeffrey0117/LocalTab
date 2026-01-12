@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>視窗分割器</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 頂部工具列 */
+    .toolbar {
+      background: #16213e;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 1px solid #0f3460;
+      flex-shrink: 0;
+    }
+
+    .toolbar h1 {
+      font-size: 16px;
+      font-weight: 500;
+      color: #e94560;
+      margin-right: 8px;
+    }
+
+    .layout-buttons {
+      display: flex;
+      gap: 6px;
+    }
+
+    .layout-btn {
+      background: #0f3460;
+      border: 1px solid #1a4a7a;
+      color: #eee;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .layout-btn:hover {
+      background: #1a4a7a;
+    }
+
+    .layout-btn.active {
+      background: #e94560;
+      border-color: #e94560;
+    }
+
+    .layout-icon {
+      display: grid;
+      width: 18px;
+      height: 14px;
+      gap: 1px;
+    }
+
+    .layout-icon span {
+      background: currentColor;
+      border-radius: 1px;
+    }
+
+    /* 佈局圖示 */
+    .icon-row { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr 1fr; }
+    .icon-col { grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr; }
+    .icon-2x2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+    .icon-left { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+    .icon-left span:first-child { grid-row: span 2; }
+    .icon-right { grid-template-columns: 1fr 2fr; grid-template-rows: 1fr 1fr; }
+    .icon-right span:last-child { grid-row: span 2; }
+    .icon-top { grid-template-columns: 1fr 1fr; grid-template-rows: 2fr 1fr; }
+    .icon-top span:first-child { grid-column: span 2; }
+
+    .url-manager {
+      display: flex;
+      gap: 8px;
+      margin-left: auto;
+    }
+
+    .url-input {
+      background: #0f3460;
+      border: 1px solid #1a4a7a;
+      color: #eee;
+      padding: 6px 12px;
+      border-radius: 6px;
+      width: 280px;
+      font-size: 12px;
+    }
+
+    .url-input:focus {
+      outline: none;
+      border-color: #e94560;
+    }
+
+    .add-btn {
+      background: #e94560;
+      border: none;
+      color: white;
+      padding: 6px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .add-btn:hover {
+      background: #ff6b6b;
+    }
+
+    /* 主容器 */
+    .container {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* 面板 */
+    .panel {
+      position: relative;
+      min-width: 100px;
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      background: #16213e;
+    }
+
+    .panel-header {
+      background: #0f3460;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #aaa;
+      flex-shrink: 0;
+    }
+
+    .panel-url {
+      flex: 1;
+      background: #16213e;
+      border: 1px solid #1a4a7a;
+      color: #eee;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+
+    .panel-url:focus {
+      outline: none;
+      border-color: #e94560;
+    }
+
+    .panel-reload {
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      padding: 4px;
+      font-size: 14px;
+    }
+
+    .panel-reload:hover {
+      color: #e94560;
+    }
+
+    .panel-close {
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      padding: 4px;
+      font-size: 12px;
+    }
+
+    .panel-close:hover {
+      color: #ff6b6b;
+    }
+
+    .panel iframe {
+      flex: 1;
+      border: none;
+      background: white;
+    }
+
+    /* 分割線 */
+    .divider {
+      background: #0f3460;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+    }
+
+    .divider::after {
+      content: '';
+      position: absolute;
+      background: #e94560;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .divider:hover::after,
+    .divider.dragging::after {
+      opacity: 1;
+    }
+
+    .divider-h {
+      width: 100%;
+      height: 5px;
+      cursor: row-resize;
+    }
+
+    .divider-h::after {
+      left: 0;
+      right: 0;
+      top: 2px;
+      height: 1px;
+    }
+
+    .divider-v {
+      width: 5px;
+      height: 100%;
+      cursor: col-resize;
+    }
+
+    .divider-v::after {
+      top: 0;
+      bottom: 0;
+      left: 2px;
+      width: 1px;
+    }
+
+    /* 佈局容器 */
+    .layout-row {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+
+    .layout-col {
+      display: flex;
+      flex-direction: row;
+      flex: 1;
+    }
+
+    /* 空狀態 */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+      font-size: 14px;
+    }
+
+    /* 面板選擇器 */
+    .panel-selector {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #16213e;
+      border: 1px solid #1a4a7a;
+      border-radius: 8px;
+      padding: 16px;
+      z-index: 100;
+      display: none;
+    }
+
+    .panel-selector.show {
+      display: block;
+    }
+
+    .panel-selector h3 {
+      font-size: 14px;
+      margin-bottom: 12px;
+      color: #e94560;
+    }
+
+    .panel-selector-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .panel-selector-item {
+      background: #0f3460;
+      border: 1px solid #1a4a7a;
+      color: #eee;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .panel-selector-item:hover {
+      border-color: #e94560;
+    }
+
+    /* 快捷鍵提示 */
+    .shortcuts {
+      font-size: 11px;
+      color: #666;
+      display: flex;
+      gap: 12px;
+    }
+
+    .shortcuts kbd {
+      background: #0f3460;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>🪟 視窗分割器</h1>
+    
+    <div class="layout-buttons">
+      <button class="layout-btn" data-layout="row" title="上下排列">
+        <div class="layout-icon icon-row"><span></span><span></span><span></span></div>
+        上下
+      </button>
+      <button class="layout-btn" data-layout="col" title="左右排列">
+        <div class="layout-icon icon-col"><span></span><span></span><span></span></div>
+        左右
+      </button>
+      <button class="layout-btn" data-layout="2x2" title="2x2 網格">
+        <div class="layout-icon icon-2x2"><span></span><span></span><span></span><span></span></div>
+        2×2
+      </button>
+      <button class="layout-btn active" data-layout="left" title="左側主視窗">
+        <div class="layout-icon icon-left"><span></span><span></span><span></span></div>
+        左主
+      </button>
+      <button class="layout-btn" data-layout="right" title="右側主視窗">
+        <div class="layout-icon icon-right"><span></span><span></span><span></span></div>
+        右主
+      </button>
+      <button class="layout-btn" data-layout="top" title="頂部主視窗">
+        <div class="layout-icon icon-top"><span></span><span></span><span></span></div>
+        上主
+      </button>
+    </div>
+
+    <div class="shortcuts">
+      <span><kbd>1-9</kbd> 切換面板</span>
+      <span><kbd>R</kbd> 重載</span>
+    </div>
+
+    <div class="url-manager">
+      <input type="text" class="url-input" id="urlInput" placeholder="輸入 URL，如 http://localhost:3000">
+      <button class="add-btn" onclick="addUrl()">+ 新增</button>
+    </div>
+  </div>
+
+  <div class="container" id="container"></div>
+
+  <script>
+    // 預設 URL 列表
+    let urls = [
+      'http://localhost:64624/story',
+      'http://localhost:3001/',
+      'http://localhost:3000/'
+    ];
+
+    // 目前佈局
+    let currentLayout = 'left';
+    
+    // 面板尺寸狀態
+    let panelSizes = {};
+
+    // 初始化
+    function init() {
+      renderLayout();
+      setupLayoutButtons();
+      setupKeyboard();
+    }
+
+    // 設定佈局按鈕
+    function setupLayoutButtons() {
+      document.querySelectorAll('.layout-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.layout-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentLayout = btn.dataset.layout;
+          renderLayout();
+        });
+      });
+    }
+
+    // 鍵盤快捷鍵
+    function setupKeyboard() {
+      document.addEventListener('keydown', (e) => {
+        // 如果在輸入框內，忽略
+        if (e.target.tagName === 'INPUT') return;
+
+        // 數字鍵切換面板
+        if (e.key >= '1' && e.key <= '9') {
+          const index = parseInt(e.key) - 1;
+          const panel = document.querySelectorAll('.panel')[index];
+          if (panel) {
+            panel.querySelector('iframe')?.focus();
+          }
+        }
+
+        // R 重載當前面板
+        if (e.key.toLowerCase() === 'r') {
+          document.querySelectorAll('.panel iframe').forEach(iframe => {
+            iframe.src = iframe.src;
+          });
+        }
+      });
+    }
+
+    // 建立面板
+    function createPanel(url, index) {
+      const panel = document.createElement('div');
+      panel.className = 'panel';
+      panel.innerHTML = `
+        <div class="panel-header">
+          <span style="color: #e94560; font-weight: bold;">${index + 1}</span>
+          <input type="text" class="panel-url" value="${url}" onchange="updateUrl(${index}, this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+          <button class="panel-reload" onclick="reloadPanel(${index})" title="重新載入">↻</button>
+          <button class="panel-close" onclick="removeUrl(${index})" title="關閉">✕</button>
+        </div>
+        <iframe src="${url}" title="Panel ${index + 1}"></iframe>
+      `;
+      return panel;
+    }
+
+    // 建立分割線
+    function createDivider(type, index) {
+      const divider = document.createElement('div');
+      divider.className = `divider divider-${type}`;
+      divider.dataset.index = index;
+      
+      divider.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        startDrag(divider, type);
+      });
+
+      return divider;
+    }
+
+    // 拖曳調整大小
+    function startDrag(divider, type) {
+      divider.classList.add('dragging');
+      const container = divider.parentElement;
+      const children = Array.from(container.children).filter(c => c.classList.contains('panel') || c.classList.contains('layout-row') || c.classList.contains('layout-col'));
+      const dividerIndex = Array.from(container.children).filter(c => c.classList.contains('divider')).indexOf(divider);
+      
+      const before = children[dividerIndex];
+      const after = children[dividerIndex + 1];
+      
+      if (!before || !after) return;
+
+      const isVertical = type === 'v';
+      const containerRect = container.getBoundingClientRect();
+      const totalSize = isVertical ? containerRect.width : containerRect.height;
+
+      const startPos = isVertical ? event.clientX : event.clientY;
+      const beforeSize = isVertical ? before.offsetWidth : before.offsetHeight;
+      const afterSize = isVertical ? after.offsetWidth : after.offsetHeight;
+
+      function onMove(e) {
+        const currentPos = isVertical ? e.clientX : e.clientY;
+        const delta = currentPos - startPos;
+        
+        const newBeforeSize = Math.max(100, beforeSize + delta);
+        const newAfterSize = Math.max(100, afterSize - delta);
+        
+        const totalNew = newBeforeSize + newAfterSize;
+        before.style.flex = `${newBeforeSize / totalNew}`;
+        after.style.flex = `${newAfterSize / totalNew}`;
+      }
+
+      function onUp() {
+        divider.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      }
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    }
+
+    // 渲染佈局
+    function renderLayout() {
+      const container = document.getElementById('container');
+      container.innerHTML = '';
+
+      if (urls.length === 0) {
+        container.innerHTML = '<div class="empty-state">點擊右上角「+ 新增」加入 URL</div>';
+        return;
+      }
+
+      switch (currentLayout) {
+        case 'row':
+          renderRowLayout(container);
+          break;
+        case 'col':
+          renderColLayout(container);
+          break;
+        case '2x2':
+          render2x2Layout(container);
+          break;
+        case 'left':
+          renderLeftLayout(container);
+          break;
+        case 'right':
+          renderRightLayout(container);
+          break;
+        case 'top':
+          renderTopLayout(container);
+          break;
+      }
+    }
+
+    // 上下排列
+    function renderRowLayout(container) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'layout-row';
+      wrapper.style.cssText = 'display: flex; flex-direction: column; flex: 1;';
+      
+      urls.forEach((url, i) => {
+        if (i > 0) wrapper.appendChild(createDivider('h', i - 1));
+        const panel = createPanel(url, i);
+        panel.style.flex = '1';
+        wrapper.appendChild(panel);
+      });
+      
+      container.appendChild(wrapper);
+    }
+
+    // 左右排列
+    function renderColLayout(container) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'layout-col';
+      wrapper.style.cssText = 'display: flex; flex-direction: row; flex: 1;';
+      
+      urls.forEach((url, i) => {
+        if (i > 0) wrapper.appendChild(createDivider('v', i - 1));
+        const panel = createPanel(url, i);
+        panel.style.flex = '1';
+        wrapper.appendChild(panel);
+      });
+      
+      container.appendChild(wrapper);
+    }
+
+    // 2x2 網格
+    function render2x2Layout(container) {
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'display: flex; flex-direction: column; flex: 1;';
+
+      // 上排
+      const topRow = document.createElement('div');
+      topRow.style.cssText = 'display: flex; flex: 1;';
+      
+      if (urls[0]) {
+        const p = createPanel(urls[0], 0);
+        p.style.flex = '1';
+        topRow.appendChild(p);
+      }
+      if (urls[1]) {
+        topRow.appendChild(createDivider('v', 0));
+        const p = createPanel(urls[1], 1);
+        p.style.flex = '1';
+        topRow.appendChild(p);
+      }
+      wrapper.appendChild(topRow);
+
+      // 分割線
+      if (urls.length > 2) {
+        wrapper.appendChild(createDivider('h', 0));
+        
+        // 下排
+        const bottomRow = document.createElement('div');
+        bottomRow.style.cssText = 'display: flex; flex: 1;';
+        
+        if (urls[2]) {
+          const p = createPanel(urls[2], 2);
+          p.style.flex = '1';
+          bottomRow.appendChild(p);
+        }
+        if (urls[3]) {
+          bottomRow.appendChild(createDivider('v', 1));
+          const p = createPanel(urls[3], 3);
+          p.style.flex = '1';
+          bottomRow.appendChild(p);
+        }
+        wrapper.appendChild(bottomRow);
+      }
+
+      container.appendChild(wrapper);
+    }
+
+    // 左側主視窗
+    function renderLeftLayout(container) {
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'display: flex; flex: 1;';
+
+      // 左側主面板
+      if (urls[0]) {
+        const main = createPanel(urls[0], 0);
+        main.style.flex = '2';
+        wrapper.appendChild(main);
+      }
+
+      // 右側堆疊
+      if (urls.length > 1) {
+        wrapper.appendChild(createDivider('v', 0));
+        
+        const sidebar = document.createElement('div');
+        sidebar.style.cssText = 'display: flex; flex-direction: column; flex: 1;';
+        
+        urls.slice(1).forEach((url, i) => {
+          if (i > 0) sidebar.appendChild(createDivider('h', i));
+          const p = createPanel(url, i + 1);
+          p.style.flex = '1';
+          sidebar.appendChild(p);
+        });
+        
+        wrapper.appendChild(sidebar);
+      }
+
+      container.appendChild(wrapper);
+    }
+
+    // 右側主視窗
+    function renderRightLayout(container) {
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'display: flex; flex: 1;';
+
+      // 左側堆疊
+      if (urls.length > 1) {
+        const sidebar = document.createElement('div');
+        sidebar.style.cssText = 'display: flex; flex-direction: column; flex: 1;';
+        
+        urls.slice(1).forEach((url, i) => {
+          if (i > 0) sidebar.appendChild(createDivider('h', i));
+          const p = createPanel(url, i + 1);
+          p.style.flex = '1';
+          sidebar.appendChild(p);
+        });
+        
+        wrapper.appendChild(sidebar);
+        wrapper.appendChild(createDivider('v', 0));
+      }
+
+      // 右側主面板
+      if (urls[0]) {
+        const main = createPanel(urls[0], 0);
+        main.style.flex = '2';
+        wrapper.appendChild(main);
+      }
+
+      container.appendChild(wrapper);
+    }
+
+    // 頂部主視窗
+    function renderTopLayout(container) {
+      const wrapper = document.createElement('div');
+      wrapper.style.cssText = 'display: flex; flex-direction: column; flex: 1;';
+
+      // 頂部主面板
+      if (urls[0]) {
+        const main = createPanel(urls[0], 0);
+        main.style.flex = '2';
+        wrapper.appendChild(main);
+      }
+
+      // 底部並排
+      if (urls.length > 1) {
+        wrapper.appendChild(createDivider('h', 0));
+        
+        const bottomRow = document.createElement('div');
+        bottomRow.style.cssText = 'display: flex; flex: 1;';
+        
+        urls.slice(1).forEach((url, i) => {
+          if (i > 0) bottomRow.appendChild(createDivider('v', i));
+          const p = createPanel(url, i + 1);
+          p.style.flex = '1';
+          bottomRow.appendChild(p);
+        });
+        
+        wrapper.appendChild(bottomRow);
+      }
+
+      container.appendChild(wrapper);
+    }
+
+    // 新增 URL
+    function addUrl() {
+      const input = document.getElementById('urlInput');
+      let url = input.value.trim();
+      
+      if (!url) return;
+      
+      // 自動補全協議
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'http://' + url;
+      }
+      
+      urls.push(url);
+      input.value = '';
+      renderLayout();
+    }
+
+    // 更新 URL
+    function updateUrl(index, newUrl) {
+      if (!newUrl.startsWith('http://') && !newUrl.startsWith('https://')) {
+        newUrl = 'http://' + newUrl;
+      }
+      urls[index] = newUrl;
+      const iframe = document.querySelectorAll('.panel iframe')[index];
+      if (iframe) iframe.src = newUrl;
+    }
+
+    // 移除 URL
+    function removeUrl(index) {
+      urls.splice(index, 1);
+      renderLayout();
+    }
+
+    // 重載面板
+    function reloadPanel(index) {
+      const iframe = document.querySelectorAll('.panel iframe')[index];
+      if (iframe) iframe.src = iframe.src;
+    }
+
+    // Enter 鍵新增
+    document.getElementById('urlInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') addUrl();
+    });
+
+    // 啟動
+    init();
+  </script>
+</body>
+</html>
