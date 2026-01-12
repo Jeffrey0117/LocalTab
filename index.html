@@ -21,14 +21,14 @@
       overflow: hidden;
     }
 
-    /* 頂部工具列 */
+    /* 底部工具列 */
     .toolbar {
       background: #16213e;
       padding: 10px 16px;
       display: flex;
       align-items: center;
       gap: 16px;
-      border-bottom: 1px solid #0f3460;
+      border-top: 1px solid #0f3460;
       flex-shrink: 0;
     }
 
@@ -94,7 +94,7 @@
     /* Tab 模式樣式 */
     .tab-layout { display: flex; flex-direction: column; flex: 1; }
     .tab-content { flex: 1; display: flex; flex-direction: column; }
-    .tab-bar { background: #16213e; border-top: 1px solid #0f3460; padding: 8px 12px; display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+    .tab-bar { background: #16213e; border-bottom: 1px solid #0f3460; padding: 8px 12px; display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
     .tab-item { background: #0f3460; border: 1px solid #1a4a7a; color: #aaa; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 8px; max-width: 200px; transition: all 0.2s; }
     .tab-item:hover { background: #1a4a7a; color: #eee; }
     .tab-item.active { background: #e94560; border-color: #e94560; color: white; }
@@ -407,9 +407,11 @@
   </style>
 </head>
 <body>
+  <div class="container" id="container"></div>
+
   <div class="toolbar">
     <h1>🪟 視窗分割器</h1>
-    
+
     <div class="layout-buttons">
       <button class="layout-btn" data-layout="tab" title="分頁模式">
         <div class="layout-icon icon-tab"><span></span></div>
@@ -457,8 +459,6 @@
       <button class="add-btn" onclick="addUrl()">+ 新增</button>
     </div>
   </div>
-
-  <div class="container" id="container"></div>
   <div class="toast" id="toast"></div>
   <input type="file" id="importInput" accept=".json" onchange="importConfig(this.files[0])">
 
@@ -761,12 +761,7 @@
       if (activeTabIndex < 0) activeTabIndex = 0;
       const wrapper = document.createElement('div');
       wrapper.className = 'tab-layout';
-      const content = document.createElement('div');
-      content.className = 'tab-content';
-      const panel = createPanel(urls[activeTabIndex], activeTabIndex);
-      panel.style.flex = '1';
-      content.appendChild(panel);
-      wrapper.appendChild(content);
+      // 分頁列在上面
       const tabBar = document.createElement('div');
       tabBar.className = 'tab-bar';
       urls.forEach((url, i) => {
@@ -777,6 +772,13 @@
         tabBar.appendChild(tabItem);
       });
       wrapper.appendChild(tabBar);
+      // 內容區域
+      const content = document.createElement('div');
+      content.className = 'tab-content';
+      const panel = createPanel(urls[activeTabIndex], activeTabIndex);
+      panel.style.flex = '1';
+      content.appendChild(panel);
+      wrapper.appendChild(content);
       container.appendChild(wrapper);
     }
 
