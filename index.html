@@ -1330,7 +1330,13 @@
 
     // 重載面板
     function reloadPanel(index) {
-      const iframe = document.querySelectorAll('.panel iframe')[index];
+      let iframe;
+      if (currentLayout === 'tab') {
+        // 分頁模式下只有一個 panel
+        iframe = document.querySelector('.panel iframe');
+      } else {
+        iframe = document.querySelectorAll('.panel iframe')[index];
+      }
       if (iframe) iframe.src = iframe.src;
     }
 
