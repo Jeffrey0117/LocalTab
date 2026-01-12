@@ -89,6 +89,19 @@
     .icon-right span:last-child { grid-row: span 2; }
     .icon-top { grid-template-columns: 1fr 1fr; grid-template-rows: 2fr 1fr; }
     .icon-top span:first-child { grid-column: span 2; }
+    .icon-tab { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+
+    /* Tab 模式樣式 */
+    .tab-layout { display: flex; flex-direction: column; flex: 1; }
+    .tab-content { flex: 1; display: flex; flex-direction: column; }
+    .tab-bar { background: #16213e; border-top: 1px solid #0f3460; padding: 8px 12px; display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+    .tab-item { background: #0f3460; border: 1px solid #1a4a7a; color: #aaa; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 8px; max-width: 200px; transition: all 0.2s; }
+    .tab-item:hover { background: #1a4a7a; color: #eee; }
+    .tab-item.active { background: #e94560; border-color: #e94560; color: white; }
+    .tab-item-index { font-weight: bold; min-width: 16px; }
+    .tab-item-url { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tab-item-close { background: none; border: none; color: inherit; cursor: pointer; padding: 0; font-size: 14px; opacity: 0.7; }
+    .tab-item-close:hover { opacity: 1; }
 
     .url-manager {
       display: flex;
@@ -330,6 +343,67 @@
       border-radius: 3px;
       font-size: 10px;
     }
+
+    /* 設定按鈕組 */
+    .config-buttons {
+      display: flex;
+      gap: 6px;
+    }
+
+    .config-btn {
+      background: #0f3460;
+      border: 1px solid #1a4a7a;
+      color: #aaa;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 11px;
+      transition: all 0.2s;
+    }
+
+    .config-btn:hover {
+      background: #1a4a7a;
+      color: #eee;
+    }
+
+    .config-btn.danger:hover {
+      background: #e94560;
+      border-color: #e94560;
+    }
+
+    /* 提示訊息 */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #16213e;
+      border: 1px solid #1a4a7a;
+      color: #eee;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+
+    .toast.success {
+      border-color: #4ade80;
+    }
+
+    .toast.error {
+      border-color: #e94560;
+    }
+
+    /* 隱藏的檔案輸入 */
+    #importInput {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -368,6 +442,12 @@
       <span><kbd>R</kbd> 重載</span>
     </div>
 
+    <div class="config-buttons">
+      <button class="config-btn" onclick="exportConfig()" title="匯出配置">匯出</button>
+      <button class="config-btn" onclick="triggerImport()" title="匯入配置">匯入</button>
+      <button class="config-btn danger" onclick="resetConfig()" title="重置為預設">重置</button>
+    </div>
+
     <div class="url-manager">
       <input type="text" class="url-input" id="urlInput" placeholder="輸入 URL，如 http://localhost:3000">
       <button class="add-btn" onclick="addUrl()">+ 新增</button>
@@ -375,23 +455,143 @@
   </div>
 
   <div class="container" id="container"></div>
+  <div class="toast" id="toast"></div>
+  <input type="file" id="importInput" accept=".json" onchange="importConfig(this.files[0])">
 
   <script>
-    // 預設 URL 列表
-    let urls = [
-      'http://localhost:64624/story',
-      'http://localhost:3001/',
-      'http://localhost:3000/'
-    ];
+    // ==================== 配置管理 ====================
+    const STORAGE_KEY = 'localtab_config';
+    const CONFIG_VERSION = 1;
 
-    // 目前佈局
+    // 預設配置
+    const DEFAULT_CONFIG = {
+      version: CONFIG_VERSION,
+      urls: ['http://localhost:3000/'],
+      layout: 'left',
+      lastUpdated: null
+    };
+
+    // 當前狀態
+    let urls = [];
     let currentLayout = 'left';
-    
-    // 面板尺寸狀態
     let panelSizes = {};
 
-    // 初始化
+    // 顯示提示訊息
+    function showToast(message, type = 'success') {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.className = 'toast show ' + type;
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2000);
+    }
+
+    // 儲存配置到 localStorage
+    function saveConfig() {
+      try {
+        const config = {
+          version: CONFIG_VERSION,
+          urls: urls,
+          layout: currentLayout,
+          lastUpdated: new Date().toISOString()
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      } catch (e) {
+        console.warn('無法儲存配置:', e);
+      }
+    }
+
+    // 從 localStorage 載入配置
+    function loadConfig() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const config = JSON.parse(stored);
+          if (config.version === CONFIG_VERSION) {
+            urls = config.urls || DEFAULT_CONFIG.urls;
+            currentLayout = config.layout || DEFAULT_CONFIG.layout;
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn('無法載入配置:', e);
+      }
+      // 使用預設值
+      urls = [...DEFAULT_CONFIG.urls];
+      currentLayout = DEFAULT_CONFIG.layout;
+      return false;
+    }
+
+    // 匯出配置為 JSON 檔案
+    function exportConfig() {
+      const config = {
+        version: CONFIG_VERSION,
+        urls: urls,
+        layout: currentLayout,
+        lastUpdated: new Date().toISOString()
+      };
+      const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'localtab-config.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('配置已匯出');
+    }
+
+    // 觸發檔案選擇
+    function triggerImport() {
+      document.getElementById('importInput').click();
+    }
+
+    // 從 JSON 檔案匯入配置
+    function importConfig(file) {
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const config = JSON.parse(e.target.result);
+          if (!config.urls || !Array.isArray(config.urls)) {
+            throw new Error('無效的配置格式');
+          }
+          urls = config.urls;
+          currentLayout = config.layout || 'left';
+          saveConfig();
+          renderLayout();
+          updateLayoutButtons();
+          showToast('配置已匯入');
+        } catch (err) {
+          showToast('匯入失敗: ' + err.message, 'error');
+        }
+      };
+      reader.readAsText(file);
+      // 重置 input 以便再次選擇相同檔案
+      document.getElementById('importInput').value = '';
+    }
+
+    // 重置為預設配置
+    function resetConfig() {
+      if (!confirm('確定要重置配置嗎？所有儲存的 URL 將被清除。')) return;
+      urls = [...DEFAULT_CONFIG.urls];
+      currentLayout = DEFAULT_CONFIG.layout;
+      saveConfig();
+      renderLayout();
+      updateLayoutButtons();
+      showToast('已重置為預設配置');
+    }
+
+    // 更新佈局按鈕狀態
+    function updateLayoutButtons() {
+      document.querySelectorAll('.layout-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.layout === currentLayout);
+      });
+    }
+
+    // ==================== 初始化 ====================
     function init() {
+      loadConfig();
       renderLayout();
       setupLayoutButtons();
       setupKeyboard();
@@ -404,9 +604,11 @@
           document.querySelectorAll('.layout-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           currentLayout = btn.dataset.layout;
+          saveConfig(); // 自動儲存
           renderLayout();
         });
       });
+      updateLayoutButtons();
     }
 
     // 鍵盤快捷鍵
@@ -715,16 +917,17 @@
     function addUrl() {
       const input = document.getElementById('urlInput');
       let url = input.value.trim();
-      
+
       if (!url) return;
-      
+
       // 自動補全協議
       if (!url.startsWith('http://') && !url.startsWith('https://')) {
         url = 'http://' + url;
       }
-      
+
       urls.push(url);
       input.value = '';
+      saveConfig(); // 自動儲存
       renderLayout();
     }
 
@@ -734,6 +937,7 @@
         newUrl = 'http://' + newUrl;
       }
       urls[index] = newUrl;
+      saveConfig(); // 自動儲存
       const iframe = document.querySelectorAll('.panel iframe')[index];
       if (iframe) iframe.src = newUrl;
     }
@@ -741,6 +945,7 @@
     // 移除 URL
     function removeUrl(index) {
       urls.splice(index, 1);
+      saveConfig(); // 自動儲存
       renderLayout();
     }
 
