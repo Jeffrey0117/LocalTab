@@ -1,0 +1,4 @@
+tmpclaude-*
+.claude/
+*.tmp
+.DS_Store
