@@ -411,6 +411,10 @@
     <h1>🪟 視窗分割器</h1>
     
     <div class="layout-buttons">
+      <button class="layout-btn" data-layout="tab" title="分頁模式">
+        <div class="layout-icon icon-tab"><span></span></div>
+        分頁
+      </button>
       <button class="layout-btn" data-layout="row" title="上下排列">
         <div class="layout-icon icon-row"><span></span><span></span><span></span></div>
         上下
@@ -474,6 +478,7 @@
     // 當前狀態
     let urls = [];
     let currentLayout = 'left';
+    let activeTabIndex = 0;
     let panelSizes = {};
 
     // 顯示提示訊息
@@ -614,23 +619,27 @@
     // 鍵盤快捷鍵
     function setupKeyboard() {
       document.addEventListener('keydown', (e) => {
-        // 如果在輸入框內，忽略
         if (e.target.tagName === 'INPUT') return;
-
-        // 數字鍵切換面板
         if (e.key >= '1' && e.key <= '9') {
           const index = parseInt(e.key) - 1;
-          const panel = document.querySelectorAll('.panel')[index];
-          if (panel) {
-            panel.querySelector('iframe')?.focus();
+          if (currentLayout === 'tab') {
+            if (index < urls.length) { activeTabIndex = index; renderLayout(); }
+          } else {
+            const panel = document.querySelectorAll('.panel')[index];
+            if (panel) panel.querySelector('iframe')?.focus();
           }
         }
-
-        // R 重載當前面板
+        if (currentLayout === 'tab') {
+          if (e.key === 'ArrowLeft') { activeTabIndex = (activeTabIndex - 1 + urls.length) % urls.length; renderLayout(); }
+          else if (e.key === 'ArrowRight') { activeTabIndex = (activeTabIndex + 1) % urls.length; renderLayout(); }
+        }
         if (e.key.toLowerCase() === 'r') {
-          document.querySelectorAll('.panel iframe').forEach(iframe => {
-            iframe.src = iframe.src;
-          });
+          if (currentLayout === 'tab') {
+            const iframe = document.querySelector('.tab-content iframe');
+            if (iframe) iframe.src = iframe.src;
+          } else {
+            document.querySelectorAll('.panel iframe').forEach(iframe => { iframe.src = iframe.src; });
+          }
         }
       });
     }
@@ -718,6 +727,9 @@
       }
 
       switch (currentLayout) {
+        case 'tab':
+          renderTabLayout(container);
+          break;
         case 'row':
           renderRowLayout(container);
           break;
@@ -737,6 +749,36 @@
           renderTopLayout(container);
           break;
       }
+    }
+
+    // 分頁模式
+    function renderTabLayout(container) {
+      if (activeTabIndex >= urls.length) activeTabIndex = urls.length - 1;
+      if (activeTabIndex < 0) activeTabIndex = 0;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'tab-layout';
+      const content = document.createElement('div');
+      content.className = 'tab-content';
+      const panel = createPanel(urls[activeTabIndex], activeTabIndex);
+      panel.style.flex = '1';
+      content.appendChild(panel);
+      wrapper.appendChild(content);
+      const tabBar = document.createElement('div');
+      tabBar.className = 'tab-bar';
+      urls.forEach((url, i) => {
+        const tabItem = document.createElement('div');
+        tabItem.className = 'tab-item' + (i === activeTabIndex ? ' active' : '');
+        tabItem.innerHTML = `<span class="tab-item-index">${i + 1}</span><span class="tab-item-url" title="${url}">${getDisplayUrl(url)}</span><button class="tab-item-close" onclick="event.stopPropagation(); removeUrl(${i})">✕</button>`;
+        tabItem.addEventListener('click', () => { activeTabIndex = i; renderLayout(); });
+        tabBar.appendChild(tabItem);
+      });
+      wrapper.appendChild(tabBar);
+      container.appendChild(wrapper);
+    }
+
+    function getDisplayUrl(url) {
+      try { const u = new URL(url); return u.host + (u.pathname !== '/' ? u.pathname : ''); }
+      catch { return url; }
     }
 
     // 上下排列
@@ -917,17 +959,12 @@
     function addUrl() {
       const input = document.getElementById('urlInput');
       let url = input.value.trim();
-
       if (!url) return;
-
-      // 自動補全協議
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        url = 'http://' + url;
-      }
-
+      if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'http://' + url;
       urls.push(url);
       input.value = '';
-      saveConfig(); // 自動儲存
+      if (currentLayout === 'tab') activeTabIndex = urls.length - 1;
+      saveConfig();
       renderLayout();
     }
 
@@ -945,7 +982,8 @@
     // 移除 URL
     function removeUrl(index) {
       urls.splice(index, 1);
-      saveConfig(); // 自動儲存
+      if (currentLayout === 'tab' && activeTabIndex >= urls.length) activeTabIndex = Math.max(0, urls.length - 1);
+      saveConfig();
       renderLayout();
     }
 
