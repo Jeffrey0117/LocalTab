@@ -21,6 +21,20 @@
       overflow: hidden;
     }
 
+    /* 頂部標題 */
+    .header {
+      background: #16213e;
+      padding: 8px 16px;
+      border-bottom: 1px solid #0f3460;
+      flex-shrink: 0;
+    }
+
+    .header h1 {
+      font-size: 16px;
+      font-weight: 500;
+      color: #e94560;
+    }
+
     /* 底部工具列 */
     .toolbar {
       background: #16213e;
@@ -30,13 +44,6 @@
       gap: 16px;
       border-top: 1px solid #0f3460;
       flex-shrink: 0;
-    }
-
-    .toolbar h1 {
-      font-size: 16px;
-      font-weight: 500;
-      color: #e94560;
-      margin-right: 8px;
     }
 
     .layout-buttons {
@@ -404,14 +411,97 @@
     #importInput {
       display: none;
     }
+
+    /* 通知徽章 */
+    .badge {
+      background: #e94560;
+      color: white;
+      font-size: 10px;
+      font-weight: bold;
+      min-width: 18px;
+      height: 18px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 5px;
+      animation: badge-pop 0.3s ease;
+    }
+
+    @keyframes badge-pop {
+      0% { transform: scale(0); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+
+    .badge.hidden {
+      display: none;
+    }
+
+    /* 面板名稱 */
+    .panel-name {
+      color: #e94560;
+      font-weight: bold;
+      font-size: 12px;
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 3px;
+      border: 1px solid transparent;
+      min-width: 30px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .panel-name:hover {
+      background: #1a4a7a;
+    }
+
+    .panel-name-input {
+      background: #16213e;
+      border: 1px solid #e94560;
+      color: #eee;
+      font-size: 12px;
+      padding: 2px 4px;
+      border-radius: 3px;
+      width: 80px;
+    }
+
+    .panel-name-input:focus {
+      outline: none;
+    }
+
+    /* Tab 項目徽章 */
+    .tab-item .badge {
+      margin-left: auto;
+    }
+
+    /* 全部已讀按鈕 */
+    .mark-read-btn {
+      background: none;
+      border: 1px solid #1a4a7a;
+      color: #888;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 10px;
+      margin-left: 8px;
+    }
+
+    .mark-read-btn:hover {
+      border-color: #e94560;
+      color: #e94560;
+    }
   </style>
 </head>
 <body>
+  <div class="header">
+    <h1>🪟 視窗分割器</h1>
+  </div>
+
   <div class="container" id="container"></div>
 
   <div class="toolbar">
-    <h1>🪟 視窗分割器</h1>
-
     <div class="layout-buttons">
       <button class="layout-btn" data-layout="tab" title="分頁模式">
         <div class="layout-icon icon-tab"><span></span></div>
@@ -465,25 +555,52 @@
   <script>
     // ==================== 配置管理 ====================
     const STORAGE_KEY = 'localtab_config';
-    const CONFIG_VERSION = 1;
+    const CONFIG_VERSION = 2;
+
+    // 生成唯一 ID
+    function generateId() {
+      return 'panel_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    // 從 URL 推測名稱
+    function guessNameFromUrl(url) {
+      try {
+        const u = new URL(url);
+        const port = u.port || (u.protocol === 'https:' ? '443' : '80');
+        const path = u.pathname !== '/' ? u.pathname.split('/').filter(Boolean)[0] : '';
+        return path ? `${port}/${path}` : port;
+      } catch {
+        return 'New';
+      }
+    }
+
+    // 建立新面板物件
+    function createPanelData(url, name = null) {
+      return {
+        id: generateId(),
+        name: name || guessNameFromUrl(url),
+        url: url,
+        unreadCount: 0
+      };
+    }
 
     // 預設配置
     const DEFAULT_CONFIG = {
       version: CONFIG_VERSION,
-      urls: [
-        'http://localhost:64624/story',
-        'http://localhost:3001/',
-        'http://localhost:3000/'
+      panels: [
+        createPanelData('http://localhost:3000/')
       ],
       layout: 'left',
       lastUpdated: null
     };
 
     // 當前狀態
-    let urls = [];
+    let panels = [];
     let currentLayout = 'left';
     let activeTabIndex = 0;
+    let focusedPanelId = null;
     let panelSizes = {};
+    let initialLoadComplete = {}; // 追蹤首次載入
 
     // 顯示提示訊息
     function showToast(message, type = 'success') {
@@ -500,7 +617,7 @@
       try {
         const config = {
           version: CONFIG_VERSION,
-          urls: urls,
+          panels: panels.map(p => ({ ...p, unreadCount: 0 })), // 不儲存未讀數
           layout: currentLayout,
           lastUpdated: new Date().toISOString()
         };
@@ -510,14 +627,24 @@
       }
     }
 
-    // 從 localStorage 載入配置
+    // 從 localStorage 載入配置（含版本遷移）
     function loadConfig() {
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
           const config = JSON.parse(stored);
-          if (config.version === CONFIG_VERSION) {
-            urls = config.urls || DEFAULT_CONFIG.urls;
+
+          // 版本 1 遷移到版本 2
+          if (config.version === 1 && config.urls) {
+            panels = config.urls.map(url => createPanelData(url));
+            currentLayout = config.layout || DEFAULT_CONFIG.layout;
+            saveConfig(); // 儲存新格式
+            return true;
+          }
+
+          // 版本 2
+          if (config.version === CONFIG_VERSION && config.panels) {
+            panels = config.panels.map(p => ({ ...p, unreadCount: 0 }));
             currentLayout = config.layout || DEFAULT_CONFIG.layout;
             return true;
           }
@@ -526,7 +653,7 @@
         console.warn('無法載入配置:', e);
       }
       // 使用預設值
-      urls = [...DEFAULT_CONFIG.urls];
+      panels = DEFAULT_CONFIG.panels.map(p => ({ ...p }));
       currentLayout = DEFAULT_CONFIG.layout;
       return false;
     }
@@ -535,7 +662,7 @@
     function exportConfig() {
       const config = {
         version: CONFIG_VERSION,
-        urls: urls,
+        panels: panels.map(p => ({ id: p.id, name: p.name, url: p.url })),
         layout: currentLayout,
         lastUpdated: new Date().toISOString()
       };
@@ -562,10 +689,14 @@
       reader.onload = (e) => {
         try {
           const config = JSON.parse(e.target.result);
-          if (!config.urls || !Array.isArray(config.urls)) {
+          // 支援新舊格式
+          if (config.panels && Array.isArray(config.panels)) {
+            panels = config.panels.map(p => ({ ...p, unreadCount: 0 }));
+          } else if (config.urls && Array.isArray(config.urls)) {
+            panels = config.urls.map(url => createPanelData(url));
+          } else {
             throw new Error('無效的配置格式');
           }
-          urls = config.urls;
           currentLayout = config.layout || 'left';
           saveConfig();
           renderLayout();
@@ -576,19 +707,75 @@
         }
       };
       reader.readAsText(file);
-      // 重置 input 以便再次選擇相同檔案
       document.getElementById('importInput').value = '';
     }
 
     // 重置為預設配置
     function resetConfig() {
-      if (!confirm('確定要重置配置嗎？所有儲存的 URL 將被清除。')) return;
-      urls = [...DEFAULT_CONFIG.urls];
+      if (!confirm('確定要重置配置嗎？所有儲存的面板將被清除。')) return;
+      panels = DEFAULT_CONFIG.panels.map(p => ({ ...p }));
       currentLayout = DEFAULT_CONFIG.layout;
       saveConfig();
       renderLayout();
       updateLayoutButtons();
       showToast('已重置為預設配置');
+    }
+
+    // ==================== 通知功能 ====================
+    // 增加未讀計數
+    function incrementUnread(panelId) {
+      const panel = panels.find(p => p.id === panelId);
+      if (panel && panelId !== focusedPanelId) {
+        panel.unreadCount++;
+        updateBadges();
+      }
+    }
+
+    // 清除未讀計數
+    function clearUnread(panelId) {
+      const panel = panels.find(p => p.id === panelId);
+      if (panel && panel.unreadCount > 0) {
+        panel.unreadCount = 0;
+        updateBadges();
+      }
+    }
+
+    // 全部已讀
+    function markAllRead() {
+      panels.forEach(p => p.unreadCount = 0);
+      updateBadges();
+    }
+
+    // 取得總未讀數
+    function getTotalUnread() {
+      return panels.reduce((sum, p) => sum + p.unreadCount, 0);
+    }
+
+    // 更新所有徽章
+    function updateBadges() {
+      // 更新 tab 項目徽章
+      document.querySelectorAll('.tab-item').forEach((item, i) => {
+        const badge = item.querySelector('.badge');
+        if (badge && panels[i]) {
+          const count = panels[i].unreadCount;
+          badge.textContent = count > 99 ? '99+' : count;
+          badge.classList.toggle('hidden', count === 0);
+        }
+      });
+
+      // 更新面板徽章
+      document.querySelectorAll('.panel').forEach((panel, i) => {
+        const badge = panel.querySelector('.badge');
+        if (badge && panels[i]) {
+          const count = panels[i].unreadCount;
+          badge.textContent = count > 99 ? '99+' : count;
+          badge.classList.toggle('hidden', count === 0);
+        }
+      });
+
+      // 更新頁面標題
+      const total = getTotalUnread();
+      document.title = total > 0 ? `(${total}) 視窗分割器` : '視窗分割器';
     }
 
     // 更新佈局按鈕狀態
@@ -627,15 +814,35 @@
         if (e.key >= '1' && e.key <= '9') {
           const index = parseInt(e.key) - 1;
           if (currentLayout === 'tab') {
-            if (index < urls.length) { activeTabIndex = index; renderLayout(); }
+            if (index < panels.length) {
+              activeTabIndex = index;
+              focusedPanelId = panels[index].id;
+              clearUnread(focusedPanelId);
+              renderLayout();
+            }
           } else {
             const panel = document.querySelectorAll('.panel')[index];
-            if (panel) panel.querySelector('iframe')?.focus();
+            if (panel) {
+              panel.querySelector('iframe')?.focus();
+              if (panels[index]) {
+                focusedPanelId = panels[index].id;
+                clearUnread(focusedPanelId);
+              }
+            }
           }
         }
         if (currentLayout === 'tab') {
-          if (e.key === 'ArrowLeft') { activeTabIndex = (activeTabIndex - 1 + urls.length) % urls.length; renderLayout(); }
-          else if (e.key === 'ArrowRight') { activeTabIndex = (activeTabIndex + 1) % urls.length; renderLayout(); }
+          if (e.key === 'ArrowLeft') {
+            activeTabIndex = (activeTabIndex - 1 + panels.length) % panels.length;
+            focusedPanelId = panels[activeTabIndex].id;
+            clearUnread(focusedPanelId);
+            renderLayout();
+          } else if (e.key === 'ArrowRight') {
+            activeTabIndex = (activeTabIndex + 1) % panels.length;
+            focusedPanelId = panels[activeTabIndex].id;
+            clearUnread(focusedPanelId);
+            renderLayout();
+          }
         }
         if (e.key.toLowerCase() === 'r') {
           if (currentLayout === 'tab') {
