@@ -1309,7 +1309,12 @@
       if (panels[index]) {
         panels[index].url = newUrl;
         saveConfig();
-        const iframe = document.querySelectorAll('.panel iframe')[index];
+        let iframe;
+        if (currentLayout === 'tab') {
+          iframe = document.querySelector('.panel iframe');
+        } else {
+          iframe = document.querySelectorAll('.panel iframe')[index];
+        }
         if (iframe) iframe.src = newUrl;
       }
     }
