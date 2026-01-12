@@ -184,24 +184,33 @@
     }
 
     .panel-reload {
-      background: #1a4a7a;
-      border: 1px solid #2a5a8a;
-      border-radius: 4px;
-      color: #eee;
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      background: #e94560;
+      border: none;
+      border-radius: 50%;
+      color: white;
       cursor: pointer;
-      padding: 6px 10px;
-      font-size: 16px;
+      width: 48px;
+      height: 48px;
+      font-size: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
       transition: all 0.2s;
+      z-index: 20;
     }
 
     .panel-reload:hover {
-      background: #e94560;
-      border-color: #e94560;
-      transform: rotate(180deg);
+      background: #ff6b6b;
+      transform: scale(1.1) rotate(180deg);
+      box-shadow: 0 6px 20px rgba(233, 69, 96, 0.6);
     }
 
     .panel-reload:active {
-      transform: rotate(360deg);
+      transform: scale(0.95) rotate(360deg);
     }
 
     .panel-close {
@@ -933,10 +942,10 @@
             <span class="${badgeClass}">${badgeText}</span>
           </div>
           <input type="text" class="panel-url" value="${panelData.url}" onchange="updateUrl(${index}, this.value)" onkeydown="if(event.key==='Enter')this.blur()">
-          <button class="panel-reload" onclick="reloadPanel(${index})" title="重新載入">↻</button>
           <button class="panel-close" onclick="removePanel(${index})" title="關閉">✕</button>
         </div>
         <iframe src="${panelData.url}" title="${panelData.name}"></iframe>
+        <button class="panel-reload" onclick="reloadPanel(${index})" title="重新載入">↻</button>
       `;
 
       // 點擊面板時清除未讀
