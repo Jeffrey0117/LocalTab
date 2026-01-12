@@ -184,33 +184,45 @@
     }
 
     .panel-reload {
-      position: absolute;
-      bottom: 16px;
-      right: 16px;
       background: #e94560;
       border: none;
-      border-radius: 50%;
+      border-radius: 6px;
       color: white;
       cursor: pointer;
-      width: 48px;
-      height: 48px;
-      font-size: 24px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
-      transition: all 0.2s;
-      z-index: 20;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.15s;
     }
 
     .panel-reload:hover {
       background: #ff6b6b;
-      transform: scale(1.1) rotate(180deg);
-      box-shadow: 0 6px 20px rgba(233, 69, 96, 0.6);
     }
 
     .panel-reload:active {
-      transform: scale(0.95) rotate(360deg);
+      transform: scale(0.95);
+    }
+
+    /* 全域重新整理按鈕 */
+    .reload-all-btn {
+      background: #e94560;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+      padding: 10px 24px;
+      font-size: 15px;
+      font-weight: 600;
+      margin-left: auto;
+      transition: all 0.15s;
+    }
+
+    .reload-all-btn:hover {
+      background: #ff6b6b;
+    }
+
+    .reload-all-btn:active {
+      transform: scale(0.95);
     }
 
     .panel-close {
@@ -942,10 +954,10 @@
             <span class="${badgeClass}">${badgeText}</span>
           </div>
           <input type="text" class="panel-url" value="${panelData.url}" onchange="updateUrl(${index}, this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+          <button class="panel-reload" onclick="reloadPanel(${index})" title="重新載入">↻ 重整</button>
           <button class="panel-close" onclick="removePanel(${index})" title="關閉">✕</button>
         </div>
         <iframe src="${panelData.url}" title="${panelData.name}"></iframe>
-        <button class="panel-reload" onclick="reloadPanel(${index})" title="重新載入">↻</button>
       `;
 
       // 點擊面板時清除未讀
@@ -1118,6 +1130,13 @@
         markReadBtn.onclick = markAllRead;
         tabBar.appendChild(markReadBtn);
       }
+
+      // 重新整理按鈕（放右邊）
+      const reloadBtn = document.createElement('button');
+      reloadBtn.className = 'reload-all-btn';
+      reloadBtn.textContent = '↻ 重新整理';
+      reloadBtn.onclick = () => reloadPanel(activeTabIndex);
+      tabBar.appendChild(reloadBtn);
 
       wrapper.appendChild(tabBar);
 
