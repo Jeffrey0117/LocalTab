@@ -184,16 +184,24 @@
     }
 
     .panel-reload {
-      background: none;
-      border: none;
-      color: #888;
+      background: #1a4a7a;
+      border: 1px solid #2a5a8a;
+      border-radius: 4px;
+      color: #eee;
       cursor: pointer;
-      padding: 4px;
-      font-size: 14px;
+      padding: 6px 10px;
+      font-size: 16px;
+      transition: all 0.2s;
     }
 
     .panel-reload:hover {
-      color: #e94560;
+      background: #e94560;
+      border-color: #e94560;
+      transform: rotate(180deg);
+    }
+
+    .panel-reload:active {
+      transform: rotate(360deg);
     }
 
     .panel-close {
