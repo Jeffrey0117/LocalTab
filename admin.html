@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LocalTab 管理</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 24px;
+      color: #60a5fa;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .card {
+      background: #16213e;
+      border: 1px solid #0f3460;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 16px;
+      color: #60a5fa;
+    }
+
+    .scan-btn {
+      background: #3b82f6;
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .scan-btn:hover {
+      background: #2563eb;
+    }
+
+    .scan-btn:disabled {
+      background: #4b5563;
+      cursor: not-allowed;
+    }
+
+    .scan-btn.scanning .spinner {
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .ports-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+    }
+
+    .port-item {
+      background: #0f3460;
+      border: 1px solid #1a4a7a;
+      border-radius: 8px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .port-item:hover {
+      border-color: #3b82f6;
+      transform: translateY(-2px);
+    }
+
+    .port-number {
+      font-size: 20px;
+      font-weight: bold;
+      color: #10b981;
+    }
+
+    .port-info {
+      font-size: 11px;
+      color: #888;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .port-process {
+      color: #60a5fa;
+    }
+
+    .port-title {
+      font-size: 12px;
+      color: #10b981;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .port-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    .port-btn {
+      background: #1a4a7a;
+      border: none;
+      color: #eee;
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11px;
+      flex: 1;
+      transition: all 0.2s;
+    }
+
+    .port-btn:hover {
+      background: #3b82f6;
+    }
+
+    .port-btn.add {
+      background: #10b981;
+    }
+
+    .port-btn.add:hover {
+      background: #34d399;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #666;
+      padding: 40px;
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #888;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+
+    .status-dot.offline {
+      background: #ef4444;
+    }
+
+    .custom-scan {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #0f3460;
+    }
+
+    .custom-input {
+      background: #0f3460;
+      border: 1px solid #1a4a7a;
+      color: #eee;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      width: 100px;
+    }
+
+    .custom-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #16213e;
+      border: 1px solid #4ade80;
+      color: #eee;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .link-to-main {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #60a5fa;
+      text-decoration: none;
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+
+    .link-to-main:hover {
+      text-decoration: underline;
+    }
+
+    .api-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      padding: 8px 12px;
+      background: #0f3460;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="index.html" class="link-to-main">← 返回視窗分割器</a>
+
+    <h1>🔧 LocalTab 管理</h1>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">API 狀態</span>
+        <div class="api-status" id="apiStatus">
+          <span class="status-dot offline"></span>
+          <span>檢查中...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">開啟的端口</span>
+        <button class="scan-btn" onclick="scanPorts()" id="scanBtn">
+          <span class="spinner">↻</span> 掃描端口
+        </button>
+      </div>
+
+      <div class="ports-grid" id="portsGrid">
+        <div class="empty-state">點擊「掃描端口」開始</div>
+      </div>
+
+      <div class="custom-scan">
+        <button class="scan-btn" onclick="scanAllPorts()">顯示所有端口</button>
+        <span style="color: #666; font-size: 12px; margin-left: 8px;">包含系統服務</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">快速新增</span>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <input type="text" class="custom-input" id="quickUrl" placeholder="輸入端口或 URL" style="flex: 1; width: auto;">
+        <button class="scan-btn" onclick="quickAdd()">新增到主頁</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const API_BASE = 'http://localhost:4567'
+    const STORAGE_KEY = 'localtab_config'
+
+    // 顯示提示
+    function showToast(message) {
+      const toast = document.getElementById('toast')
+      toast.textContent = message
+      toast.classList.add('show')
+      setTimeout(() => toast.classList.remove('show'), 2000)
+    }
+
+    // 檢查 API 狀態
+    async function checkApiStatus() {
+      const statusEl = document.getElementById('apiStatus')
+      try {
+        const res = await fetch(`${API_BASE}/health`)
+        if (res.ok) {
+          statusEl.innerHTML = '<span class="status-dot"></span><span>API 運作中</span>'
+          return true
+        }
+      } catch (e) {}
+      statusEl.innerHTML = '<span class="status-dot offline"></span><span>API 離線 - 請啟動 server</span>'
+      return false
+    }
+
+    // 掃描常見端口
+    async function scanPorts() {
+      const btn = document.getElementById('scanBtn')
+      btn.disabled = true
+      btn.classList.add('scanning')
+
+      try {
+        const res = await fetch(`${API_BASE}/api/ports`)
+        const data = await res.json()
+        renderPorts(data.ports)
+      } catch (e) {
+        showToast('掃描失敗，請確認 API 是否啟動')
+      } finally {
+        btn.disabled = false
+        btn.classList.remove('scanning')
+      }
+    }
+
+    // 顯示所有端口
+    async function scanAllPorts() {
+      try {
+        const res = await fetch(`${API_BASE}/api/ports/all`)
+        const data = await res.json()
+        renderPorts(data.ports)
+        showToast(`找到 ${data.total} 個端口`)
+      } catch (e) {
+        showToast('掃描失敗')
+      }
+    }
+
+    // 渲染端口列表
+    function renderPorts(ports) {
+      const grid = document.getElementById('portsGrid')
+
+      if (ports.length === 0) {
+        grid.innerHTML = '<div class="empty-state">沒有找到開啟的端口</div>'
+        return
+      }
+
+      // 支援新舊格式
+      grid.innerHTML = ports.map(p => {
+        const port = typeof p === 'number' ? p : p.port
+        const process = typeof p === 'object' ? p.process : null
+        const pid = typeof p === 'object' ? p.pid : null
+        const title = typeof p === 'object' ? p.title : null
+        const isHttp = typeof p === 'object' ? p.isHttp : null
+
+        return `
+          <div class="port-item">
+            <span class="port-number">:${port}</span>
+            ${title ? `<div class="port-title">${title}</div>` : ''}
+            <div class="port-info">
+              ${process ? `<span class="port-process">${process}</span>` : ''}
+              ${pid ? `<span>PID: ${pid}</span>` : ''}
+              ${isHttp === false ? `<span style="color:#ef4444">非 HTTP</span>` : ''}
+            </div>
+            <div class="port-actions">
+              <button class="port-btn" onclick="openPort(${port})">開啟</button>
+              <button class="port-btn add" onclick="addToMain(${port})">新增</button>
+            </div>
+          </div>
+        `
+      }).join('')
+    }
+
+    // 開啟端口
+    function openPort(port) {
+      window.open(`http://localhost:${port}`, '_blank')
+    }
+
+    // 新增到主頁
+    function addToMain(port) {
+      const url = `http://localhost:${port}/`
+      addUrlToConfig(url)
+    }
+
+    // 快速新增
+    function quickAdd() {
+      let input = document.getElementById('quickUrl').value.trim()
+      if (!input) return
+
+      // 如果只是數字，當成端口
+      if (/^\d+$/.test(input)) {
+        input = `http://localhost:${input}/`
+      } else if (!input.startsWith('http://') && !input.startsWith('https://')) {
+        input = 'http://' + input
+      }
+
+      addUrlToConfig(input)
+      document.getElementById('quickUrl').value = ''
+    }
+
+    // 新增 URL 到配置
+    function addUrlToConfig(url) {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY)
+        const config = stored ? JSON.parse(stored) : { version: 2, panels: [], layout: 'left' }
+
+        // 檢查是否已存在
+        const exists = config.panels.some(p => p.url === url)
+        if (exists) {
+          showToast('此 URL 已存在')
+          return
+        }
+
+        // 新增面板
+        const newPanel = {
+          id: 'panel_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+          name: guessNameFromUrl(url),
+          url: url,
+          unreadCount: 0
+        }
+
+        config.panels.push(newPanel)
+        config.lastUpdated = new Date().toISOString()
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+        showToast(`已新增 ${newPanel.name}`)
+      } catch (e) {
+        showToast('新增失敗')
+      }
+    }
+
+    // 從 URL 推測名稱
+    function guessNameFromUrl(url) {
+      try {
+        const u = new URL(url)
+        const port = u.port || (u.protocol === 'https:' ? '443' : '80')
+        const path = u.pathname !== '/' ? u.pathname.split('/').filter(Boolean)[0] : ''
+        return path ? `${port}/${path}` : port
+      } catch {
+        return 'New'
+      }
+    }
+
+    // 初始化
+    checkApiStatus()
+    setInterval(checkApiStatus, 10000) // 每 10 秒檢查一次
+  </script>
+</body>
+</html>

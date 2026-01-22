@@ -375,6 +375,10 @@
       color: #eee;
     }
 
+    a.config-btn {
+      text-decoration: none;
+    }
+
     .config-btn.danger:hover {
       background: #ef4444;
       border-color: #ef4444;
@@ -537,6 +541,7 @@
     </div>
 
     <div class="config-buttons">
+      <a href="admin.html" class="config-btn" title="管理端口">🔧 管理</a>
       <button class="config-btn" onclick="exportConfig()" title="匯出配置">匯出</button>
       <button class="config-btn" onclick="triggerImport()" title="匯入配置">匯入</button>
       <button class="config-btn danger" onclick="resetConfig()" title="重置為預設">重置</button>
