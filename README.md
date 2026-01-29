@@ -1,6 +1,17 @@
+<div align="center">
+
+<img src="logo.jpeg" alt="LocalTab Logo" width="120">
+
 # LocalTab
 
-A lightweight, single-file localhost dashboard for developers. View and manage multiple local dev servers in one browser tab.
+**A lightweight localhost dashboard for developers.**
+View and manage multiple local dev servers in one browser tab.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
+</div>
+
+---
 
 ## Features
 
@@ -11,12 +22,25 @@ A lightweight, single-file localhost dashboard for developers. View and manage m
 - **Auto-Save** - Configuration persists in localStorage
 - **Import/Export** - Share or backup your setup as JSON
 - **Notification Badges** - See which panels have updates
+- **Port Scanner** - Backend API to auto-detect running dev servers
 
-## Usage
+## Quick Start
 
 1. Open `index.html` in your browser
 2. Add your localhost URLs
 3. Pick a layout that works for you
+
+### Backend (Optional)
+
+The backend provides automatic port scanning to discover running dev servers.
+
+```bash
+cd server
+bun install
+bun run index.ts
+```
+
+Then open `admin.html` to scan and manage ports.
 
 ## Keyboard Shortcuts
 
@@ -28,13 +52,19 @@ A lightweight, single-file localhost dashboard for developers. View and manage m
 
 ## Configuration
 
-- **Export** - Download current setup as JSON
-- **Import** - Load a saved configuration
-- **Reset** - Restore default settings
+| Action | Description |
+|--------|-------------|
+| **Export** | Download current setup as JSON |
+| **Import** | Load a saved configuration |
+| **Reset** | Restore default settings |
 
-## Tech
+## Tech Stack
 
-Single HTML file. No build step. No dependencies. Just open and use.
+| Component | Technology |
+|-----------|------------|
+| Frontend | Single HTML file, vanilla JS, no dependencies |
+| Backend | Bun + Elysia (TypeScript) |
+| Storage | localStorage (browser) |
 
 ## License
 
